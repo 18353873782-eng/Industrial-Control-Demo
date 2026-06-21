@@ -2,27 +2,14 @@ import streamlit as st
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
-import os
 
-# --- 核心修复：加载中文字体 ---
-font_path = 'simhei.ttf'  # 确保你已经把这个文件上传到了 GitHub 仓库
-if os.path.exists(font_path):
-    # 注册字体
-    fe = fm.FontEntry(fname=font_path, name='SimHei')
-    fm.fontManager.ttflist.insert(0, fe)
-    plt.rcParams['font.sans-serif'] = ['SimHei']
-    plt.rcParams['axes.unicode_minus'] = False
-else:
-    st.warning("未检测到字体文件 simhei.ttf，图表中文可能显示为方块。请上传字体文件至 GitHub。")
-
-# 页面配置
+# 1. 页面基本配置
 st.set_page_config(page_title="工业视觉与控制仿真平台", layout="wide")
 
 st.title("🚀 工业视觉与 PID 控制综合分析平台")
 st.markdown("---")
 
-# 侧边栏导航
+# 2. 侧边栏导航
 st.sidebar.header("🛠️ 功能设置")
 mode = st.sidebar.selectbox("选择展示模块", ["工业视觉处理", "电机 PID 控制仿真"])
 
@@ -52,18 +39,21 @@ if mode == "工业视觉处理":
             _, processed = cv2.threshold(gray, v, 255, cv2.THRESH_BINARY)
 
         c1, c2 = st.columns(2)
-        c1.image(img, channels="BGR", caption="原始图像", use_container_width=True)
-        c2.image(processed, caption=f"处理结果: {effect}", use_container_width=True)
+        c1.image(img, channels="BGR", caption="原始图像 (Original)", use_container_width=True)
+        c2.image(processed, caption=f"处理结果 (Result: {effect})", use_container_width=True)
 
 elif mode == "电机 PID 控制仿真":
     st.header("📈 直流电机转速闭环控制仿真")
     st.info("模型：二阶动力学系统 [J*w' + B*w = K*u]。目标：在负载扰动下保持恒定转速。")
     
-    Kp = st.sidebar.slider("比例系数 Kp (响应速度)", 0.0, 50.0, 20.0)
-    Ki = st.sidebar.slider("积分系数 Ki (消除静差)", 0.0, 20.0, 10.0)
-    Kd = st.sidebar.slider("微分系数 Kd (抑制震荡)", 0.0, 10.0, 1.0)
-    load = st.sidebar.slider("外部负载扰动", 0.0, 0.5, 0.0)
+    # PID 参数调节
+    st.sidebar.subheader("PID 参数整定")
+    Kp = st.sidebar.slider("比例系数 Kp", 0.0, 50.0, 20.0)
+    Ki = st.sidebar.slider("积分系数 Ki", 0.0, 20.0, 10.0)
+    Kd = st.sidebar.slider("微分系数 Kd", 0.0, 10.0, 1.0)
+    load = st.sidebar.slider("外部负载扰动 (Load)", 0.0, 0.5, 0.0)
     
+    # 仿真逻辑
     dt = 0.01
     t = np.arange(0, 5, dt)
     setpoint, y, v, integral, prev_err, history = 1.0, 0.0, 0.0, 0.0, 0.0, []
@@ -80,17 +70,19 @@ elif mode == "电机 PID 控制仿真":
         history.append(y)
         prev_err = err
 
+    # 绘图展示 (使用英文标签确保 100% 不乱码)
     fig, ax = plt.subplots(figsize=(10, 4))
-    ax.plot(t, history, label='实际转速 (RPM)', linewidth=2)
-    ax.axhline(setpoint, color='red', linestyle='--', label='目标转速')
-    ax.set_title("电机转速 PID 响应曲线")
-    ax.set_xlabel("时间 (s)")
-    ax.set_ylabel("转速幅值")
+    ax.plot(t, history, label='Actual Speed (RPM)', linewidth=2)
+    ax.axhline(setpoint, color='red', linestyle='--', label='Target Setpoint')
+    ax.set_title("DC Motor PID Speed Response")
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("Amplitude / Speed")
     ax.legend(loc='lower right')
     ax.grid(True, alpha=0.3)
     st.pyplot(fig)
     
+    # 性能指标量化显示 (使用中文增强可读性)
     col1, col2, col3 = st.columns(3)
-    col1.metric("稳态误差", f"{abs(setpoint-history[-1]):.4f}")
-    col2.metric("最大超调量", f"{(max(history)-setpoint)/setpoint*100:.1f}%")
-    col3.metric("调节时间", "1.2s")
+    col1.metric("稳态误差 (Error)", f"{abs(setpoint-history[-1]):.4f}")
+    col2.metric("最大超调量 (Overshoot)", f"{(max(history)-setpoint)/setpoint*100:.1f}%")
+    col3.metric("调节时间 (Settling Time)", "1.2s")
